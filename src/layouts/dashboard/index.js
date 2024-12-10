@@ -47,6 +47,7 @@ import reportsBarChartData from "layouts/dashboard/data/reportsBarChartData";
 import gradientLineChartData from "layouts/dashboard/data/gradientLineChartData";
 'use client'
 
+import Pie from "./Pie";
 
 import React, { useState } from 'react';
 function Dashboard() {
@@ -112,26 +113,13 @@ function Dashboard() {
   };
 
 
+  const [predictedPick, setPredictedPick] = useState(0); // Set the default value of predicted pick
 
 
   const { size } = typography;
   const { chart, items } = reportsBarChartData;
-  const s = {
-    labels: ["Shooting", "Defense", "Playmaking", "Athleticism"],
-    datasets: [
-      {
-        label: "Lebron James",
-        color: "info",
-        data: [50, 40, 300, 220],
-      },
-      {
-        label: "Stepen Curry",
-        color: "dark",
-        data: [30, 90, 40, 140],
-      },
-    ],
-  };
-  
+
+
 
   const SliderInput = ({ label, value, onChange }) => (
 
@@ -156,25 +144,27 @@ function Dashboard() {
   };
 
   const [priority, setPriority] = useState({
-    blocks: 3,
-    defense: 3,
-    threePoint: 3,
-    rebounds: 3,
-    steals: 3
+    // blocks: 3,
+    // defense: 3,
+    // threePoint: 3,
+    // rebounds: 3,
+    // steals: 3
   });
 
   const playerTypes = {
     shooter: ["Far2A_pg", "Close2A_pg", "FTA_pg", "OBPM", "eFG", "3PA_pg", "Far 2 %", "Close 2 %", "3P%"],
-    slasher: ["Close2A_pg", "DunksA_pg", "ORB_per", "PRPG!", "Ortg", "TS_per", "eFG"],
+    slasher: ["Close2A_pg", "DunksA_pg", "ORB_per", "PRPG!", "Ortg", "TS_per", "eFG", "FTA_pg"],
     playmaker: ["Ast", "TO_per", "3P%", "PRPG!", "Ortg", "TS_per", "Stl", "eFG", "FT_per", "FTA_pg"],
-    defense: ["Height", "BPM", "D-PRPG", "DBPM", "D-Rtg", "DRB_per", "Blk", "Stl", 'DRB_per'],
-    general: ['usg', 'Height', 'PRPG!', 'OBPM', 'DBPM', 'eFG', 'ORB_per', 'DRB_per', 'TO_per', 'A/TO', 'Blk', 'Stl', 'Ast', 'Reb', 'Pts', 'DunksA_pg', 'DunksM_pg', 'Close2A_pg', 'Close2M_pg', 'Far2A_pg', 'Far2M_pg', 'FTA_pg', 'FTM_pg', '3PA_pg', '3PM_pg']
+    defender: ["BPM", "D-PRPG", "DBPM", "D-Rtg", "DRB_per", "Blk", "Stl", 'DRB_per'],
+    general: ['usg', 'PRPG!', 'OBPM', 'DBPM', 'eFG', 'ORB_per', 'DRB_per', 'TO_per', 'A/TO', 'Blk', 'Stl', 'Ast', 'Reb', 'Pts', 'DunksA_pg', 'DunksM_pg', 'Close2A_pg', 'Close2M_pg', 'Far2A_pg', 'Far2M_pg', 'FTA_pg', 'FTM_pg', '3PA_pg', '3PM_pg']
   };
-  
+
+  const textFields = ["team", "conf", "Role", "Height", "Class"];
+
   // Predefined set of possible fields (can be extended)
   const [selectedPlayerType, setSelectedPlayerType] = useState('');
   const [selectedFields, setSelectedFields] = useState({});
-
+  const [s, setData] = useState({});
   // Handle selection of player type
   const handlePlayerTypeChange = (event) => {
     const playerType = event.target.value;
@@ -199,28 +189,55 @@ function Dashboard() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted with data:', selectedFields);
-    const postData = { ...selectedFields, ...priority };
+    const postData = {
+      data: { ...selectedFields },
+      ...priority,
+      playerType: selectedPlayerType
+    };
 
 
 
     try {
-      const response = await fetch('http://localhost:8000/submit', {
+      const response = await fetch('http://localhost:8000/submit', { // Update with your actual Flask URL
         method: 'POST',
-        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(postData),
-      });
+      })
+
+      const result = await response.json(); // Parse the JSON response
+      console.log('Server response:', result); // Handle the response
+      let player_data = result.player_comps;
+      let data = [];
+
+      for (let i = 0; i < player_data.length; i++) {
+        data.push({
+          label: player_data[i].player_name,
+          data: [
+            player_data[i].OBPM,
+            player_data[i].DBPM,
+            player_data[i].TS_per,
+            player_data[i].distance * 100
+          ]
+        })
+      }
+      data[0].color = "info"
+
+      const graph = {
+        labels: ["Offense", "Defense", "Shooting", "Distance"],
+        datasets: data
+      };
+      setData(graph);
+      setPredictedPick(Math.floor(result.predicted_pick))
+      console.log(predictedPick)
+
 
 
     } catch (error) {
       console.error('Error while submitting:', error);
     }
   };
-
-
-
 
   return (
     <DashboardLayout>
@@ -258,94 +275,108 @@ function Dashboard() {
         <SoftBox mb={3}>
           <Grid container spacing={3}>
 
-            
+
             <Grid item xs={6} lg={6}>
-            <div style={formStyles.container}>
-        <h1 style={formStyles.header}>NBA Draft Prediction Stats</h1>
-        <form onSubmit={handleSubmit}>
-          {/* Player Type Selection */}
-          <div style={formStyles.checkboxGroup}>
-            <h2 style={formStyles.sectionTitle}>Select Player Type</h2>
-            <label style={formStyles.label}>
-              <input
-                type="radio"
-                value="shooter"
-                checked={selectedPlayerType === 'shooter'}
-                onChange={handlePlayerTypeChange}
-                style={formStyles.checkbox}
-              />
-              Shooter
-            </label>
-            <label style={formStyles.label}>
-              <input
-                type="radio"
-                value="slasher"
-                checked={selectedPlayerType === 'slasher'}
-                onChange={handlePlayerTypeChange}
-                style={formStyles.checkbox}
-              />
-              Slasher
-            </label>
-            <label style={formStyles.label}>
-              <input
-                type="radio"
-                value="playmaker"
-                checked={selectedPlayerType === 'playmaker'}
-                onChange={handlePlayerTypeChange}
-                style={formStyles.checkbox}
-              />
-              Playmaker
-            </label>
-            <label style={formStyles.label}>
-              <input
-                type="radio"
-                value="defense"
-                checked={selectedPlayerType === 'defense'}
-                onChange={handlePlayerTypeChange}
-                style={formStyles.checkbox}
-              />
-              Defender
-            </label>
-            <label style={formStyles.label}>
-              <input
-                type="radio"
-                value="general"
-                checked={selectedPlayerType === 'general'}
-                onChange={handlePlayerTypeChange}
-                style={formStyles.checkbox}
-              />
-              General
-            </label>
-          </div>
+              <div style={formStyles.container}>
+                <h1 style={formStyles.header}>NBA Draft Prediction Stats</h1>
+                <form onSubmit={handleSubmit}>
+                  {/* Player Type Selection */}
+                  <div style={formStyles.checkboxGroup}>
+                    <h2 style={formStyles.sectionTitle}>Select Player Type</h2>
+                    <label style={formStyles.label}>
+                      <input
+                        type="radio"
+                        value="shooter"
+                        checked={selectedPlayerType === 'shooter'}
+                        onChange={handlePlayerTypeChange}
+                        style={formStyles.checkbox}
+                      />
+                      Shooter
+                    </label>
+                    <label style={formStyles.label}>
+                      <input
+                        type="radio"
+                        value="slasher"
+                        checked={selectedPlayerType === 'slasher'}
+                        onChange={handlePlayerTypeChange}
+                        style={formStyles.checkbox}
+                      />
+                      Slasher
+                    </label>
+                    <label style={formStyles.label}>
+                      <input
+                        type="radio"
+                        value="playmaker"
+                        checked={selectedPlayerType === 'playmaker'}
+                        onChange={handlePlayerTypeChange}
+                        style={formStyles.checkbox}
+                      />
+                      Playmaker
+                    </label>
+                    <label style={formStyles.label}>
+                      <input
+                        type="radio"
+                        value="defender"
+                        checked={selectedPlayerType === 'defender'}
+                        onChange={handlePlayerTypeChange}
+                        style={formStyles.checkbox}
+                      />
+                      Defender
+                    </label>
+                    <label style={formStyles.label}>
+                      <input
+                        type="radio"
+                        value="general"
+                        checked={selectedPlayerType === 'general'}
+                        onChange={handlePlayerTypeChange}
+                        style={formStyles.checkbox}
+                      />
+                      General
+                    </label>
+                  </div>
 
-          {/* Stats Input Fields */}
-          {selectedPlayerType && (
-            <div>
-              <h2 style={formStyles.sectionTitle}>Enter Stats for {selectedPlayerType}</h2>
-              {possibleFields.map(field => (
-                <div key={field} style={formStyles.inputGroup}>
-                  <label style={formStyles.label}>{field}:</label>
-                  <input
-                    type="number"
-                    value={selectedFields[field] || ''}
-                    onChange={(e) => handleInputChange(e, field)}
-                    placeholder={`Enter ${field}`}
-                    required
-                    style={formStyles.input}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+                  {/* Stats Input Fields */}
+                  {selectedPlayerType && (
+                    <div>
+                      <h2 style={formStyles.sectionTitle}>Enter Stats for {selectedPlayerType}</h2>
+                      {/* Render Text Fields for Team, Conference, Role, Height, and Class */}
+                      {textFields.map(field => (
+                        <div key={field} style={formStyles.inputGroup}>
+                          <label style={formStyles.label}>{field}:</label>
+                          <input
+                            type="text"
+                            value={selectedFields[field] || ''}
+                            onChange={(e) => handleInputChange(e, field)}
+                            placeholder={`Enter ${field}`}
+                            required
+                            style={formStyles.input}
+                          />
+                        </div>
+                      ))}
+                      {possibleFields.map(field => (
+                        <div key={field} style={formStyles.inputGroup}>
+                          <label style={formStyles.label}>{field}:</label>
+                          <input
+                            type="number"
+                            value={selectedFields[field] || ''}
+                            onChange={(e) => handleInputChange(e, field)}
+                            placeholder={`Enter ${field}`}
+                            required
+                            style={formStyles.input}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-          <button type="submit" style={formStyles.button}>
-            Submit
-          </button>
-        </form>
-      </div>
+                  <button type="submit" style={formStyles.button}>
+                    Submit
+                  </button>
+                </form>
+              </div>
             </Grid>
 
-            <Grid item xs={6} lg={6} sm = {1}>
+            <Grid item xs={6} lg={6} sm={1}>
               <Card>
                 <div style={{ maxWidth: 'fit-content', marginLeft: 'auto', marginRight: 'auto' }}>
                   <h3 style={formStyles.header}> Select Priorities </h3>
@@ -379,15 +410,26 @@ function Dashboard() {
 
             </Grid>
 
-            <Grid item xs={6} lg={12}>
-                <Card>  
-                  <HorizontalBarChart 
-                    title = "player comps"
-                    chart = {s}></HorizontalBarChart>
-                </Card>
+
+
+            <Grid item xs={6} lg={10}>
+              <Card>
+                <HorizontalBarChart
+                  title="player comps"
+                  chart={s}></HorizontalBarChart>
+              </Card>
+            </Grid>
+
+            <Grid item xs={6} lg={2}>
+              <Card>
+                <h2 style={{ ...formStyles.sectionTitle, textAlign: 'center', padding: '20px' }}>Expected Draft Pick</h2>
+
+                <div style={{ paddingBottom: '90px' }}>
+                  <Pie percentage={predictedPick} colour="blue" />
+                </div>              </Card>
             </Grid>
           </Grid>
-          
+
         </SoftBox>
         <SoftBox mb={3}>
           <Grid container spacing={3}>
